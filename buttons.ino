@@ -2,8 +2,8 @@
 
 #define PULSE_WIDTH_USEC 5                   // Импульс "загрузка/чтение" для 74HC165.
 
-const int casc_ds = 2; //data pin
-const int casc_st_cp =  3; //latch pin
+#define CASC_DS 2
+#define CASC_ST_CP 3
 const int casc_sh_cp =  4; //clock pin
 const int buzzer = 9; //buzzer pin
 const int btn_sh_ld = 5;
@@ -16,7 +16,7 @@ const int tmblr = 12;
 //кнопки левые  : синяя - 4 (7); зелёная - 5 (5); жёлтая - 6 (3); красная - 7 (1).
 //кнопки правые : синяя - 3 (8); зелёная - 2 (6); жёлтая - 1 (4); красная - 0 (2).
 
-const int buttons[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+char *buttons[8];
 const int digits[8] = {2, 4, 6, 8, 7, 5, 3, 1};
 
 boolean casc_state[24] = {0, 0, 0, 0, 0, 0,
@@ -47,7 +47,7 @@ const boolean numbers[23][8] = {{0, 0, 0, 0, 0, 0, 1, 1},
                                 {1, 1, 1, 1, 1, 1, 1, 0},
                                 {1, 1, 1, 1, 1, 0, 1, 1}};
                           
-int sounds[8] = {60, 80, 100, 120, 140, 160, 180, 200};
+const int sounds[8] = {60, 80, 100, 120, 140, 160, 180, 200};
 
 struct pressed_button {
   short button_id;
@@ -70,10 +70,14 @@ button_state *buttons_state = new button_state[8];
 
 boolean just_one_pressed; //флаг, показывающий, нажата ли хотя бы одна кнопка, важно для работы тумблера
 
+boolean locked;
+boolean tmblr_state;
+boolean fstart_state;
+
 void setup() {
   Serial.begin(9600);
-  pinMode(casc_ds, OUTPUT);
-  pinMode(casc_st_cp, OUTPUT);
+  pinMode(CASC_DS, OUTPUT);
+  pinMode(CASC_ST_CP, OUTPUT);
   pinMode(casc_sh_cp, OUTPUT);
   pinMode(buzzer, OUTPUT);
   pinMode(btn_sh_ld, OUTPUT);
@@ -84,6 +88,17 @@ void setup() {
   pinMode(tmblr, INPUT);
   digitalWrite(btn_clk, HIGH);
   digitalWrite(btn_sh_ld, HIGH);
+  for (int i = 0; i < 8; ++i) {
+    buttons[i] = new char[2];
+  }
+  buttons[0] = "lr";
+  buttons[1] = "rr";
+  buttons[2] = "ly";
+  buttons[3] = "ry";
+  buttons[4] = "lg";
+  buttons[5] = "rg";
+  buttons[6] = "lb";
+  buttons[7] = "rb";
   resetApp();
   MsTimer2::set(25, mloop);
   MsTimer2::start();
@@ -91,19 +106,44 @@ void setup() {
 
 void resetApp() {
   analogWrite(buzzer, 0);
+  just_one_pressed = false;
+  locked = false;
+  tmblr_state = false;
+  fstart_state = false;
+  beep_pointer = 0;
   for (int i = 0; i < 8; ++i) {
     display_number(i + 1, 21);
     order[i].button_id = 0;
     order[i].cycles_beeped = 0;
-    beep_pointer = 0;
     buttons_state[i].state = false;
     buttons_state[i].false_start = false;
     buttons_state[i].cycles_away = 0;
   }
-  just_one_pressed = false;
 }
 
 void loop() {
+  /*in loop we are waiting for bluetooth commands*/
+  if (Serial.available())
+  {
+    char command = Serial.read();
+    switch (command)
+    {
+      case 'r':
+        resetApp();
+        break;
+      case 'f':
+        fstart_state = fstart_state ? false : true;
+        break;
+      case 't':
+        tmblr_state = tmblr_state ? false : true;
+        break;
+      case 'l':
+        locked = locked ? false : true;
+        break;
+      default:
+        break;
+    }
+  }
 }
 
 //главный цикл
@@ -114,13 +154,17 @@ void mloop() {
     resetApp();
     return;
   }
-  if (digitalRead(tmblr) == HIGH && just_one_pressed) {
+  if (!locked) {
+    tmblr_state = digitalRead(tmblr) == HIGH ? true : false;
+    fstart_state = digitalRead(fstart) == HIGH ? true : false;
+  }
+  if (tmblr_state && just_one_pressed) {
     return;
   }
   readButtonsState();
   for (int i = 0; i < 8; ++i) {
     if (buttons_state[i].state) {
-      if (digitalRead(fstart) == HIGH) {
+      if (fstart_state) {
         buttons_state[i].false_start = true;
       } else {
         if (buttons_state[i].false_start) {
@@ -128,7 +172,7 @@ void mloop() {
         }
         buttonPressed(digits[i]);
         just_one_pressed = true;
-        if (digitalRead(tmblr) == HIGH) {
+        if (tmblr_state) {
           return;
         }
       }
@@ -170,6 +214,8 @@ void buttonPressed(int button) {
     } else if (order[i].button_id == 0) {
       order[i].button_id = button;
       display_number(button, i + 1);
+      Serial.print(buttons[button - 1]);
+      Serial.println(i + 1);
       return;
     }
   }
@@ -217,7 +263,7 @@ void display_number(int at, int number) {
 }
 
 void write_casc_state() {
-  digitalWrite(casc_st_cp, LOW);
+  digitalWrite(CASC_ST_CP, LOW);
   for (int i = 2; i >= 0; --i) {
     int data = 0;
     for (int j = 7; j >= 0; --j) {
@@ -226,9 +272,9 @@ void write_casc_state() {
         data += pow(int(2 * cstate), int(7 - j));
       }
     }
-    shiftOut(casc_ds, casc_sh_cp, LSBFIRST, data);
+    shiftOut(CASC_DS, casc_sh_cp, LSBFIRST, data);
   }
-  digitalWrite(casc_st_cp, HIGH);
+  digitalWrite(CASC_ST_CP, HIGH);
 }
 
 void set_casc_state(boolean state) {
