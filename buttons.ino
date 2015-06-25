@@ -1,11 +1,11 @@
 #include <MsTimer2.h>
 
-#define PULSE_WIDTH_USEC 5                   // Импульс "загрузка/чтение" для 74HC165.
+#define PULSE_WIDTH_USEC 5                   // Save/load impulse for 74HC165.
 
 #define CASC_DS 2
 #define CASC_ST_CP 3
-const int casc_sh_cp =  4; //clock pin
-const int buzzer = 9; //buzzer pin
+const int casc_sh_cp =  4; // clock pin
+const int buzzer = 9; // buzzer pin
 const int btn_sh_ld = 5;
 const int btn_clk = 6;
 const int btn_qh = 7;
@@ -13,8 +13,8 @@ const int fstart = 10;
 const int reset = 11;
 const int tmblr = 12;
 
-//кнопки левые  : синяя - 4 (7); зелёная - 5 (5); жёлтая - 6 (3); красная - 7 (1).
-//кнопки правые : синяя - 3 (8); зелёная - 2 (6); жёлтая - 1 (4); красная - 0 (2).
+// left buttons  : blue - 4 (7); green - 5 (5); yellow - 6 (3); red - 7 (1).
+// right buttons : blue - 3 (8); green - 2 (6); yellow - 1 (4); red - 0 (2).
 
 char *buttons[8];
 const int digits[8] = {2, 4, 6, 8, 7, 5, 3, 1};
@@ -68,7 +68,7 @@ button_state *buttons_state = new button_state[8];
 
 #define MAX_INACTIVE_CYCLES 2
 
-boolean just_one_pressed; //флаг, показывающий, нажата ли хотя бы одна кнопка, важно для работы тумблера
+boolean just_one_pressed; // indicates whether button has been pressed, this is important for tumbler
 
 boolean locked;
 boolean tmblr_state;
@@ -122,7 +122,7 @@ void resetApp() {
 }
 
 void loop() {
-  /*in loop we are waiting for bluetooth commands*/
+  /* waiting for bluetooth commands */
   if (Serial.available())
   {
     char command = Serial.read();
@@ -145,8 +145,6 @@ void loop() {
     }
   }
 }
-
-//главный цикл
 
 void mloop() {
   beep();
@@ -179,8 +177,6 @@ void mloop() {
     }
   }
 }
-
-// конец
 
 void readButtonsState() {
   digitalWrite(btn_sh_ld, LOW);
@@ -238,8 +234,9 @@ void beep() {
 }
 
 void display_number(int at, int number) {
-  /*at should be in [1:8] and number in [0:21], where 0:9 is numbers without dot and 10-19 - with,
-   *20 completely switches of led and 21 blip only dot.
+  /**
+   * at should be in [1:8] and number in [0:21], where 0:9 is numbers without dot and 10-19 - with,
+   * 20 completely switches of led and 21 blip only dot.
    */
   int ds = 3 * (at - 1);
   int st_cp = ds + 1;
@@ -284,7 +281,7 @@ void set_casc_state(boolean state) {
 }
 
 int pow(int number, int exponent) {
-  /*because internal does not work properly or i am a dumbass*/
+  /* because internal does not work properly or i am a dumbass */
   int result = 1;
   for (int i = 0; i < exponent; ++i) {
     result *= number;
